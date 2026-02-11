@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Player System</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+    font-family:'Orbitron', sans-serif;
+    background:radial-gradient(circle at top,#050b14,#000000 80%);
+    color:#00fff7;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    min-height:100vh;
+    padding:20px;
+}
+h1{text-align:center;margin-bottom:20px;text-shadow:0 0 10px #00fff7;}
+.card{
+    background: rgba(0,0,0,0.6);
+    border:1px solid #00fff7;
+    border-radius:12px;
+    padding:20px;
+    margin:10px 0;
+    width:100%;
+    max-width:420px;
+    box-shadow:0 0 20px #00fff7;
+}
+.card select, .card button{
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    border-radius:8px;
+    border:none;
+    background:#00fff7;
+    color:#000;
+    font-weight:bold;
+    cursor:pointer;
+    font-family:'Orbitron', sans-serif;
+}
+.card button:hover{background:#00c6b7;}
+.xp-bar{background:#001f26;border-radius:10px;overflow:hidden;margin-top:10px;}
+.xp-fill{height:20px;width:0%;background:#00fff7;text-align:center;color:#000;font-weight:bold;transition:width 0.5s;}
+.level-text{text-align:center;margin-top:10px;font-size:18px;}
+</style>
+</head>
+<body>
+<h1>⚔ Shadow Player System</h1>
+
+<div class="card">
+    <label>Step 1: Select Day / Muscle Group</label>
+    <select id="daySelect">
+        <option value="">--Choose Day--</option>
+        <option value="shoulder">Day 1 / 4 - Shoulder</option>
+        <option value="chest">Day 2 / 5 - Chest</option>
+        <option value="back">Day 3 / 6 - Back</option>
+        <option value="mind">Mind / Meditation</option>
+    </select>
+</div>
+
+<div class="card">
+    <label>Step 2: Select Exercise</label>;
+    <select id="exerciseSelect">
+        <option value="">--Select Exercise--</option>
+    </select>
+</div>
+
+<div class="card">
+    <label>Step 3: Today's Target</label>
+    <div id="targetDisplay">Select day & exercise to see target</div>
+</div>
+
+<div class="card">
+    <button id="completeBtn">Complete Workout</button>
+</div>
+
+<div class="card">
+    <div class="level-text">Level: <span id="level">1</span></div>
+    <div class="xp-bar">
+        <div class="xp-fill" id="xpFill">0%</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="level-text">Physical XP: <span id="bodyXP">0</span></div>
+    <div class="level-text">Mind XP: <span id="mindXP">0</span></div>
+</div>
+
+<script>
+// Workout Data
+const workoutData = {
+    shoulder:[
+        {name:"Front Dumbbell Raise", reps:8, type:"body"},
+        {name:"Side Dumbbell Raise", reps:8, type:"body"},
+        {name:"Dips", reps:8, type:"body"}
+    ],
+    chest:[
+        {name:"Bench Press", reps:8, type:"body"},
+        {name:"Pushups", reps:100, type:"body"}
+    ],
+    back:[
+        {name:"Chain Pull", reps:10, type:"body"},
+        {name:"Deadlift", reps:8, weight:20, type:"body"} // 20kg start
+    ],
+    mind:[
+        {name:"Deep Breathing", reps:10, type:"mind"}
+    ]
+};
+
+// XP Settings
+const xpNeeded = 100;
+
+// State
+let state = {
+    level:1,
+    xp:0,
+    bodyXP:0,
+    mindXP:0,
+    lastDate:"",
+    completed:[]
+};
+
+// Load from localStorage
+if(localStorage.getItem('playerState')){
+    state = JSON.parse(localStorage.getItem('playerState'));
+}
+
+// Date check
+const today = new Date().toLocaleDateString();
+if(state.lastDate !== today){
+    state.completed = [];
+    state.lastDate = today;
+    saveState();
+}
+
+// DOM Elements
+const daySelect = document.getElementById('daySelect');
+const exerciseSelect = document.getElementById('exerciseSelect');
+const targetDisplay = document.getElementById('targetDisplay');
+const completeBtn = document.getElementById('completeBtn');
+const levelText = document.getElementById('level');
+const xpFill = document.getElementById('xpFill');
+const bodyXPText = document.getElementById('bodyXP');
+const mindXPText = document.getElementById('mindXP');
+
+// Render XP/Level
+updateXPUI();
+
+// Populate exercises
+daySelect.addEventListener('change', ()=>{
+    const day = daySelect.value;
+    exerciseSelect.innerHTML = '<option value="">--Select Exercise--</option>';
+    if(day){
+        workoutData[day].forEach((ex,index)=>{
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.textContent = ex.name + (ex.weight ? ` (${ex.weight}kg)` : "");
+            if(state.completed.includes(`${day}-${index}`)){
+                opt.disabled = true;
+                opt.textContent += " ✅ Done";
+            }
+            exerciseSelect.appendChild(opt);
+        });
+        targetDisplay.textContent = 'Select an exercise to see target';
+    }
+});
+
+// Show target
+exerciseSelect.addEventListener('change', ()=>{
+    const day = daySelect.value;
+    const exIndex = exerciseSelect.value;
+    if(exIndex !== ""){
+        const ex = workoutData[day][exIndex];
+        let txt = `Do ${ex.reps} reps`;
+        if(ex.weight) txt += ` with ${ex.weight}kg`;
+        targetDisplay.textContent = txt;
+    }
+});
+
+// Complete workout
+completeBtn.addEventListener('click', ()=>{
+    const day = daySelect.value;
+    const exIndex = exerciseSelect.value;
+    if(day && exIndex!==""){
+        const key = `${day}-${exIndex}`;
+        if(state.completed.includes(key)){
+            alert("You already completed this exercise today!");
+            return;
+        }
+        const ex = workoutData[day][exIndex];
+        // XP Gain
+        let gain = Math.floor(Math.random()*10)+5; // 5-15 XP
+        if(ex.type === "body") state.bodyXP += gain;
+        if(ex.type === "mind") state.mindXP += gain;
+
+        state.xp += gain;
+        state.completed.push(key);
+
+        if(state.xp >= xpNeeded){
+            state.level++;
+            state.xp -= xpNeeded;
+            alert(`⚡ Level Up! You are now Level ${state.level}`);
+        }
+
+        saveState();
+        updateXPUI();
+        alert(`Workout Completed: ${ex.name} (+${gain} XP)`);
+
+        // Refresh exercise select
+        daySelect.dispatchEvent(new Event('change'));
+    }else{
+        alert("Select day and exercise first!");
+    }
+});
+
+// Functions
+function saveState(){
+    localStorage.setItem('playerState', JSON.stringify(state));
+}
+
+function updateXPUI(){
+    levelText.textContent = state.level;
+    xpFill.style.width = Math.min((state.xp/xpNeeded*100),100) + '%';
+    xpFill.textContent = Math.min((state.xp/xpNeeded*100),100).toFixed(0)+'%';
+    bodyXPText.textContent = state.bodyXP;
+    mindXPText.textContent = state.mindXP;
+}
+</script>
+
+</body>
+</html>
